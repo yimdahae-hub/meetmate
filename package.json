@@ -1,0 +1,14 @@
+{
+  "name": "meetmate",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "회의 녹음/메모를 AI 회의록과 캘린더 할 일로 바꾸는 웹 앱",
+  "scripts": {
+    "dev": "node dev-server.mjs",
+    "test": "node tests.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
