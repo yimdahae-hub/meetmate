@@ -2,6 +2,9 @@
 
 녹음 파일이나 회의 메모를 올리면 회의록이 완성됩니다. 받아쓰기, 안건별 회의록, 담당자와 기한이 붙은 할 일, 구글 캘린더 등록까지 한 번에 처리하는 웹 앱입니다.
 
+**배포 주소:** https://meetmate-plum.vercel.app (접속 코드 필요)  
+**저장소:** https://github.com/yimdahae-hub/meetmate
+
 대학원 「생성형 AI와 바이브코딩」 과제로 AI Coding Agent(Claude Code)와 함께 만들었습니다. 개발 과정과 겪은 문제는 [docs/DEVLOG.md](docs/DEVLOG.md)에 날짜순으로 기록했습니다.
 
 <p align="center"><img src="icon.svg" width="72" alt="MeetMate 아이콘"></p>

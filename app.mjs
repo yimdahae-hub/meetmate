@@ -151,6 +151,9 @@ function applyAiResult(r){
  // "지현:" → 참석자 목록의 "박지현"처럼, 이름 일부만 적힌 화자 표시는 전체 이름으로 채운다.
  const names=state.participants.split(/[,、;\n/]+/).map(x=>x.trim().match(/^[가-힣]{2,4}/)?.[0]).filter(Boolean);
  for(const sp of speakers){if(!sp.name){const full=names.find(n=>n!==sp.label&&n.endsWith(sp.label)&&sp.label.length>=2);if(full)sp.name=full;}}
+ // Two different voices can't be the same person. If the AI gave one name to several speakers, leave them unnamed for the user to fix.
+ const nameCount={};for(const sp of speakers)if(sp.name)nameCount[sp.name]=(nameCount[sp.name]||0)+1;
+ for(const sp of speakers)if(sp.name&&nameCount[sp.name]>1&&sp.label!==sp.name)sp.name='';
  state=renameSpeakers(state,Object.fromEntries(speakers.filter(x=>x.name).map(x=>[x.label,x.name])));
  state.generated=true;state.engine='ai';state.model=r.model||'';save();syncForm();activate('minutes');
  const unnamed=speakers.filter(x=>!x.name).length;
