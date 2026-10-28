@@ -1,10 +1,16 @@
 import { generateMinutes, asMarkdown, googleCalendarUrl, asICS, makeId, isoLocal, renameSpeakers, topicsToText, groupTasks } from './logic.mjs';
 const STORAGE_KEY = 'meetmate-v1-2026';
 const $=id=>document.getElementById(id);
-const DEFAULT = () => ({title:'', date:isoLocal(new Date()),participants:'',transcript:'',summary:'',issues:'',tasks:[],speakers:[],generated:false,engine:'',model:'',templateUsed:false});
+// detail: 회의록 분량 ('brief' 간략 | 'detailed' 상세). detailUsed: 지금 보이는 회의록이 어느 분량으로 만들어졌는지.
+// sourceMode: 회의 내용을 넣는 방법 ('audio' 녹음 파일 | 'text' 글). 둘 중 하나만 화면에 보인다.
+const DEFAULT = () => ({title:'', date:isoLocal(new Date()),participants:'',transcript:'',summary:'',issues:'',tasks:[],speakers:[],generated:false,engine:'',model:'',templateUsed:false,detail:'detailed',detailUsed:'',sourceMode:'audio'});
+const DETAIL_LABEL={brief:'간략',detailed:'상세'};
 let state=DEFAULT();
-try {const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');if(saved && typeof saved==='object') state={...state,...saved,tasks:Array.isArray(saved.tasks)?saved.tasks:[]};} catch(e){console.warn('복구 실패:',e);}
-let currentFile=null,audioURL=null,stream=null,recorder=null,recordParts=[],loading=false,toastTimer=null;
+try {const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');if(saved && typeof saved==='object'){state={...state,...saved,tasks:Array.isArray(saved.tasks)?saved.tasks:[]};if(!saved.sourceMode&&state.transcript.trim())state.sourceMode='text';}} catch(e){console.warn('복구 실패:',e);}
+let currentFile=null,audioURL=null,stream=null,recorder=null,recordParts=[],loading=false,toastTimer=null,recordTimer=null;
+// m4a·webm(바로 녹음 포함)은 브라우저가 WAV로 바꿔야 하는데, 긴 파일은 메모리를 너무 써서 40분까지만 바꾼다. mp3·wav는 바로 올라가 200MB까지.
+const MAX_CONVERT_MIN=40;
+const mmss=s=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(Math.floor(s%60)).padStart(2,'0')}`;
 const DEFAULT_STATUS='녹음은 Google Gemini로 보내 받아쓰고, 끝나면 바로 지웁니다.';
 const LABELS={source:'회의 원문',minutes:'회의록',tasks:'할 일 목록'};
 const SAMPLE=`10/24 한빛식품 브랜드 리뉴얼 2차 미팅 (우리: 민트스튜디오 / 클라이언트: 한빛식품)
@@ -39,7 +45,11 @@ function syncForm(){
  $('charCount').textContent=`${state.transcript.length.toLocaleString('ko-KR')}자`;
  $('summaryOutput').value=state.summary; $('issuesOutput').value=state.issues;
  updateMinutesHeader();updateTaskCounts();renderTasks();renderSpeakers();
- $('summaryHint').textContent=state.templateUsed?`내 양식 · ${template.name||'붙여넣기'} · 직접 수정 가능`:'안건별 · 직접 수정 가능';
+ for(const b of document.querySelectorAll('#detailSeg button')){const on=b.dataset.detail===state.detail;b.classList.toggle('on',on);b.setAttribute('aria-checked',on);}
+ for(const b of document.querySelectorAll('.source-switch button')){const on=b.dataset.source===state.sourceMode;b.classList.toggle('on',on);b.setAttribute('aria-selected',on);}
+ for(const p of document.querySelectorAll('[data-source-panel]'))p.hidden=p.dataset.sourcePanel!==state.sourceMode;
+ const used=DETAIL_LABEL[state.detailUsed]?`${DETAIL_LABEL[state.detailUsed]} · `:'';
+ $('summaryHint').textContent=state.templateUsed?`${used}내 양식 · ${template.name||'붙여넣기'} · 직접 수정 가능`:`${used}안건별 · 직접 수정 가능`;
 }
 function updateMinutesHeader(){
  $('minutesTitle').textContent=state.generated?(state.title||'제목 없는 회의'):'아직 회의록이 없습니다';
@@ -135,7 +145,7 @@ async function apiFetch(url,init,retry=true){
  return res;
 }
 async function callMinutesApi(payload){
- const res=await apiFetch('/api/minutes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:state.title,date:state.date,participants:state.participants,template:template.text,...payload})});
+ const res=await apiFetch('/api/minutes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:state.title,date:state.date,participants:state.participants,template:template.text,detail:state.detail,...payload})});
  let data={};try{data=await res.json();}catch{/* non-JSON (e.g. static hosting without /api) */}
  if(!res.ok)throw new Error(data.error||`서버 응답 오류 (${res.status})`);
  return data;
@@ -144,6 +154,7 @@ function applyAiResult(r){
  if(r.transcript)state.transcript=r.transcript;
  // With a user template the AI writes the whole document in that format; otherwise use the recommended layout.
  if(template.text&&r.formatted){state.summary=r.formatted;state.templateUsed=true;}else{state.summary=topicsToText(r.topics);state.templateUsed=false;}
+ state.detailUsed=state.detail;
  state.issues=bullets(r.issues)+(r.nextMeeting?`${r.issues.length?'\n\n':''}▸ 다음 회의: ${r.nextMeeting}`:'');
  state.tasks=r.tasks.map(t=>({id:makeId(),done:false,details:[],team:'',...t}));
  // AI writes speaker labels (화자1…); swap in the names it could identify from the conversation.
@@ -181,6 +192,12 @@ function setAudioFile(file){
  $('audioPlayer').src=audioURL;$('audioPreview').hidden=false;$('transcribeBtn').disabled=false;
  setStatus('파일 준비됐어요. [AI로 회의록 만들기]를 누르세요.');
  if(file.size>60*1024*1024)toast('파일이 커서 변환에 시간이 걸릴 수 있어요.');
+ // 길이를 미리 재서, 변환이 필요한 형식이 40분을 넘으면 기다리게 하지 않고 바로 알린다.
+ $('audioPlayer').onloadedmetadata=()=>{
+   const min=$('audioPlayer').duration/60;if(!Number.isFinite(min))return;
+   if(!directMime(file)&&min>MAX_CONVERT_MIN){$('transcribeBtn').disabled=true;setStatus(`이 파일은 ${Math.round(min)}분이라 처리할 수 없어요. m4a·webm 형식은 ${MAX_CONVERT_MIN}분까지만 됩니다. mp3로 변환해서 올리거나 ${MAX_CONVERT_MIN}분 이하로 나눠 주세요.`,'error');}
+   else setStatus(`파일 준비됐어요 (${mmss($('audioPlayer').duration)}). [AI로 회의록 만들기]를 누르세요.`);
+ };
 }
 function setBusy(b,what='audio'){
  loading=b;$('transcribeBtn').disabled=b||!currentFile;$('recordBtn').disabled=b;$('generateBtn').disabled=b;$('audioFile').disabled=b;$('demoBtn').disabled=b;
@@ -238,13 +255,15 @@ async function transcribe(){
    const file=await uploadAudio(blob,mime,currentFile.name);
    const mb=blob.size/1024/1024;
    setStatus(`AI가 녹음을 듣고 있어요. ${mb<10?'30초':'1~3분'}쯤 걸립니다. 창을 닫지 마세요.`);
-   applyAiResult(await callMinutesApi({fileName:file.name}));
-   setStatus('다 됐어요. 받아쓴 내용은 위 [회의 원문]에서 고칠 수 있어요.','ok');
+   const result=await callMinutesApi({fileName:file.name});
+   state.sourceMode='text'; // 받아쓴 글이 원문 칸에 들어가므로, 돌아오면 그 글이 보이게 한다.
+   applyAiResult(result);
+   setStatus('다 됐어요. 받아쓴 내용은 [글로 넣기]의 회의 원문에서 고칠 수 있어요.','ok');
  }catch(e){console.error(e);setStatus(`실패: ${e?.message||String(e)} 텍스트를 직접 붙여 넣어도 정리할 수 있어요.`,'error');toast('녹음을 처리하지 못했어요. 위 안내를 확인하세요.');}
  finally{setBusy(false);}
 }
 async function toggleRecording(){
- if(recorder&&recorder.state==='recording'){recorder.stop();$('recordBtn').textContent='● 바로 녹음하기';return;}
+ if(recorder&&recorder.state==='recording'){stopRecording();return;}
  if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){toast('이 브라우저는 녹음 기능을 지원하지 않아요. HTTPS 또는 localhost에서 확인해 주세요.');return;}
  try{
    stream=await navigator.mediaDevices.getUserMedia({audio:true});
@@ -254,21 +273,40 @@ async function toggleRecording(){
    recorder.onstop=()=>{const blob=new Blob(recordParts,{type:recorder.mimeType||'audio/webm'});const ext=blob.type.includes('mp4')?'m4a':'webm';
      setAudioFile(new File([blob],`직접녹음-${Date.now()}.${ext}`,{type:blob.type}));
      stream?.getTracks().forEach(t=>t.stop());stream=null;transcribe();}; // start AI processing right away
-   recorder.start();$('recordBtn').textContent='■ 녹음 종료';setStatus('녹음 중입니다. [녹음 종료]를 누르면 AI가 바로 회의록을 만들어요.');
+   recorder.start();$('recordBtn').classList.add('recording');setStatus(`녹음 중입니다. 타일을 다시 누르면 끝나고 AI가 바로 회의록을 만들어요. 최대 ${MAX_CONVERT_MIN}분이며, 시간이 되면 자동으로 마칩니다.`);
+   // 경과 시간 표시. 40분이 되면 자동으로 마쳐서 녹음을 잃지 않게 한다 (더 길면 변환이 안 됨).
+   const started=Date.now();let warned=false;
+   $('recordLabel').textContent=`녹음 중 00:00 / ${MAX_CONVERT_MIN}:00 · 누르면 종료`;
+   recordTimer=setInterval(()=>{
+     const sec=(Date.now()-started)/1000;
+     $('recordLabel').textContent=`녹음 중 ${mmss(sec)} / ${MAX_CONVERT_MIN}:00 · 누르면 종료`;
+     if(!warned&&sec>=(MAX_CONVERT_MIN-5)*60){warned=true;setStatus(`5분 뒤(${MAX_CONVERT_MIN}분) 녹음이 자동으로 끝납니다. 더 긴 회의는 휴대폰 녹음 앱으로 mp3로 저장해 올려 주세요.`);}
+     if(sec>=MAX_CONVERT_MIN*60){stopRecording();toast(`${MAX_CONVERT_MIN}분이 되어 녹음을 자동으로 마쳤어요. 이어서 회의록을 만듭니다.`);}
+   },1000);
  }catch(e){stream?.getTracks().forEach(t=>t.stop());stream=null;setStatus('마이크를 쓸 수 없어요. 브라우저 권한을 확인하거나 녹음 파일을 올려 주세요.','error');}
+}
+function stopRecording(){
+ clearInterval(recordTimer);recordTimer=null;
+ if(recorder&&recorder.state==='recording')recorder.stop();
+ $('recordLabel').textContent='바로 녹음하기';$('recordBtn').classList.remove('recording');
 }
 function setSample(){
  if(state.transcript.trim()&&!window.confirm('예시 회의를 불러오면 현재 원문과 정리 결과가 바뀝니다. 계속할까요?'))return;
- state={...DEFAULT(),title:'한빛식품 브랜드 리뉴얼 2차 미팅 (예시)',date:'2026-10-24',participants:'임다해, 전소연, 이진선, 박준호, 김세린',transcript:SAMPLE};
+ state={...DEFAULT(),detail:state.detail,sourceMode:'text',title:'한빛식품 브랜드 리뉴얼 2차 미팅 (예시)',date:'2026-10-24',participants:'임다해, 전소연, 이진선, 박준호, 김세린',transcript:SAMPLE};
  save();syncForm();toast('예시 회의를 불러왔어요. [AI로 회의록 · 할 일 정리]를 눌러 보세요.');
 }
 function reset(){
- if(recorder?.state==='recording')recorder.stop();
+ if(recorder?.state==='recording'){recorder.onstop=null;stopRecording();}
  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
  if(audioURL)URL.revokeObjectURL(audioURL);
- audioURL=null;currentFile=null;$('audioFile').value='';$('fileLabel').textContent='여기에 녹음파일을 놓거나 클릭해 선택';$('audioPreview').hidden=true;
- $('transcribeBtn').disabled=true;state=DEFAULT();save();syncForm();activate('source');setStatus(DEFAULT_STATUS);toast('전부 지웠어요.');
+ audioURL=null;currentFile=null;$('audioFile').value='';$('fileLabel').textContent='녹음 파일 올리기';$('audioPreview').hidden=true;
+ $('transcribeBtn').disabled=true;state={...DEFAULT(),detail:state.detail};save();syncForm();activate('source');setStatus(DEFAULT_STATUS);toast('전부 지웠어요.');
 }
+$('detailSeg').addEventListener('click',e=>{
+ const b=e.target.closest('button[data-detail]');if(!b||b.dataset.detail===state.detail)return;
+ state.detail=b.dataset.detail;save();syncForm();
+ toast(state.detail==='detailed'?'상세 버전: 논의 흐름과 의견 근거, 결론까지. 회의에 없던 사람도 읽을 수 있게 정리해요.':'간략 버전: 안건별로 "논의 → 그래서 할 일"을 한 줄씩 정리해요.');
+});
 // UI events
 for(const btn of document.querySelectorAll('[data-tab]'))btn.addEventListener('click',e=>{e.preventDefault();activate(btn.dataset.tab)});
 for(const [id,key] of [['meetingTitle','title'],['meetingDate','date'],['participants','participants'],['transcript','transcript'],['summaryOutput','summary'],['issuesOutput','issues']]){
@@ -278,6 +316,10 @@ for(const [id,key] of [['meetingTitle','title'],['meetingDate','date'],['partici
  });
 }
 $('demoBtn').addEventListener('click',setSample);
+document.querySelector('.source-switch').addEventListener('click',e=>{
+ const b=e.target.closest('button[data-source]');if(!b||b.dataset.source===state.sourceMode)return;
+ state.sourceMode=b.dataset.source;save();syncForm();
+});
 $('applySpeakers').addEventListener('click',applySpeakerNames);
 $('generateBtn').addEventListener('click',generate);
 $('goTasksBtn').addEventListener('click',()=>activate('tasks'));

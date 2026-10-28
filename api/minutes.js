@@ -1,7 +1,7 @@
 // POST /api/minutes
 // body: { title, date, participants, text }            → rough notes / transcript
 //    or { title, date, participants, fileName, mimeType } → audio already uploaded via /api/upload
-import { buildPrompt, generateMinutesWithGemini, speakersInText, geminiFetch, httpError, errorResponse, checkAccess, MODEL } from './_gemini.js';
+import { buildPrompt, generateMinutesWithGemini, speakersInText, geminiFetch, httpError, errorResponse, checkAccess, detailLevel, MODEL } from './_gemini.js';
 
 const MAX_TEXT = 60000;
 const MAX_TEMPLATE = 8000;
@@ -20,9 +20,10 @@ export async function POST(request) {
   try { checkAccess(request); } catch (e) { return errorResponse(e); }
   let body;
   try { body = await request.json(); } catch { return Response.json({ error: '잘못된 요청입니다.' }, { status: 400 }); }
-  const { title = '', date = '', participants = '', text = '', fileName = '', template = '' } = body || {};
+  const { title = '', date = '', participants = '', text = '', fileName = '', template = '', detail = 'detailed' } = body || {};
   if (String(template).length > MAX_TEMPLATE) return Response.json({ error: `회의록 샘플이 너무 깁니다 (최대 ${MAX_TEMPLATE.toLocaleString()}자).` }, { status: 413 });
-  const meta = { title: String(title).slice(0, 100), date: String(date), participants: String(participants).slice(0, 200), template: String(template).trim() };
+  // detail: 'brief'(간략) | 'detailed'(상세). 모르는 값이 오면 상세로 처리한다.
+  const meta = { title: String(title).slice(0, 100), date: String(date), participants: String(participants).slice(0, 200), template: String(template).trim(), detail: detailLevel(String(detail)) };
 
   try {
     let parts;

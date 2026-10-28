@@ -119,8 +119,16 @@ export function generateMinutes(text, meetingDate, participants='') {
 export function makeId(){return (globalThis.crypto?.randomUUID?.() ?? `id-${Date.now()}-${Math.random().toString(36).slice(2,9)}`);}
 const escMd = (s) => String(s||'').trim() || '미정';
 // Minutes text helpers: the AI returns structured topics; the editor keeps them as plain text.
+// 간략: "1. 안건 / - 항목". 상세(sections 있음): "[업무영역] / 1. 세부 주제 / - 항목" (미팅 리포트의 ## [영역] → ### 1. 구조를 일반 텍스트로).
+const bulletLines = points => (points || []).map(pt => `- ${pt}`).join('\n');
 export function topicsToText(topics) {
-  return (topics || []).map((tp, i) => `${i + 1}. ${tp.title || '안건'}\n${(tp.points || []).map(pt => `- ${pt}`).join('\n')}`).join('\n\n');
+  return (topics || []).map((tp, i) => {
+    if (tp.sections?.length) {
+      const sections = tp.sections.map((s, j) => `${j + 1}. ${s.title || '세부 주제'}\n${bulletLines(s.points)}`).join('\n');
+      return `[${tp.title || '안건'}]\n${sections}`;
+    }
+    return `${i + 1}. ${tp.title || '안건'}\n${bulletLines(tp.points)}`;
+  }).join('\n\n');
 }
 export function groupTasks(tasks) {
   // Keep teams in order of first appearance; tasks without a team go last under ''.

@@ -34,22 +34,31 @@
         <div class="steps" aria-label="진행 단계"><button data-tab="source" class="step step-on"><span>1</span>원문 준비</button><span class="step-line"></span><button data-tab="minutes" class="step"><span>2</span>회의록 정리</button><span class="step-line"></span><button data-tab="tasks" class="step"><span>3</span>할 일 관리</button></div>
       </header>
       <section id="panel-source" class="view active" aria-label="회의 원문">
-        <div class="section-heading"><div><span class="kicker">STEP 01 / SOURCE</span><h2>회의 내용 넣기</h2><p>녹음 파일을 올리거나, 메모를 붙여 넣으세요.</p></div><button id="demoBtn" class="outline">✦ 예시 회의 불러오기</button></div>
+        <div class="section-heading"><div><span class="kicker">STEP 01 / SOURCE</span><h2>회의 내용 넣기</h2><p>녹음 파일과 글 중 <strong>하나만</strong> 넣으면 됩니다.</p></div><button id="demoBtn" class="outline">✦ 예시 회의 불러오기</button></div>
         <div class="meta-grid">
           <label class="field"><span>회의 제목</span><input id="meetingTitle" type="text" placeholder="예: 주간 콘텐츠 기획 회의" maxlength="100" /></label>
           <label class="field"><span>회의 날짜</span><input id="meetingDate" type="date" /></label>
-          <label class="field field-full"><span>참석자 <small>(선택)</small></span><input id="participants" type="text" placeholder="예: 임다해, 전소연, 이진선" maxlength="200" /></label>
+          <label class="field"><span>참석자 <small>(선택)</small></span><input id="participants" type="text" placeholder="예: 임다해, 전소연, 이진선" maxlength="200" /></label>
+          <div class="field"><span>회의록 분량</span><div class="seg" id="detailSeg" role="radiogroup" aria-label="회의록 분량"><button type="button" role="radio" data-detail="brief">간략<small>논의 → 할 일</small></button><button type="button" role="radio" data-detail="detailed">상세<small>흐름·근거·결론</small></button></div></div>
         </div>
-        <div class="card audio-card">
-          <div class="card-heading"><div class="card-symbol">♫</div><div><h3>녹음파일 → AI 회의록 <span class="beta">GEMINI</span></h3><p>mp3, wav, m4a 파일. 받아쓰기부터 할 일 추출까지 한 번에 처리합니다.</p></div></div>
-          <label id="dropZone" class="drop-zone" for="audioFile"><span class="upload-icon">↑</span><strong id="fileLabel">녹음 파일을 끌어다 놓거나 눌러서 선택</strong><span>최대 200MB. 휴대폰 녹음 앱 파일도 그대로 올라갑니다.</span></label>
+        <div class="source-switch" role="tablist" aria-label="회의 내용을 넣는 방법">
+          <button type="button" role="tab" data-source="audio"><span class="src-icon">♫</span><span><strong>녹음으로 넣기 <em>기본</em></strong><small>지금 바로 녹음하거나 mp3, m4a 파일을 올립니다. AI가 받아쓰기부터 합니다.</small></span></button>
+          <span class="src-or">또는</span>
+          <button type="button" role="tab" data-source="text"><span class="src-icon">✎</span><span><strong>글로 넣기</strong><small>녹음이 없을 때. 회의 메모, 녹취록, 클로바노트 텍스트를 붙여 넣습니다.</small></span></button>
+        </div>
+        <div class="card audio-card" data-source-panel="audio">
+          <div class="card-heading"><div class="card-symbol">♫</div><div><h3>녹음파일 → AI 회의록 <span class="beta">GEMINI</span></h3><p>받아쓰기부터 할 일 추출까지 한 번에 처리합니다. 받아쓴 글은 [글로 넣기]에 들어가므로 따로 적지 않아도 됩니다.<br><b>40분 넘는 회의</b>는 휴대폰 녹음 앱으로 녹음한 뒤 <b>mp3로 저장</b>해 올리세요. m4a·webm과 앱 안 녹음은 40분까지만 됩니다.</p></div></div>
+          <div class="audio-ways">
+            <button id="recordBtn" type="button" class="record-tile"><span class="rec-dot">●</span><strong id="recordLabel">바로 녹음하기</strong><span class="sub">회의 중이라면 지금 녹음을 시작하세요.<br>끝내면 바로 회의록을 만듭니다. <b>최대 40분</b>.</span></button>
+            <label id="dropZone" class="drop-zone" for="audioFile"><span class="upload-icon">↑</span><strong id="fileLabel">녹음 파일 올리기</strong><span>끌어다 놓거나 눌러서 선택.<br>mp3·wav는 200MB까지, m4a·webm은 <b>40분까지</b>.</span></label>
+          </div>
           <input id="audioFile" type="file" accept="audio/*,.m4a,.mp3,.wav,.webm,.ogg" class="sr-only" />
           <div id="audioPreview" class="audio-preview" hidden><audio id="audioPlayer" controls preload="metadata"></audio></div>
-          <div class="audio-actions"><button id="recordBtn" class="outline">● 바로 녹음하기</button><button id="transcribeBtn" class="dark-btn" disabled>AI로 회의록 만들기 <span>→</span></button></div>
+          <div class="audio-actions"><button id="transcribeBtn" class="dark-btn" disabled>AI로 회의록 만들기 <span>→</span></button></div>
           <div id="transcribeStatus" class="status" role="status" aria-live="polite">녹음은 Google Gemini로 보내 받아쓰고, 끝나면 바로 지웁니다.</div>
         </div>
-        <div class="card transcript-card">
-          <div class="section-row"><div><h3>회의 원문</h3><p>녹취록, 회의 중 급하게 적은 메모, 클로바노트에서 복사한 글. 뭐든 그대로 붙여 넣으세요.</p></div><span class="text-counter" id="charCount">0자</span></div>
+        <div class="card transcript-card" data-source-panel="text">
+          <div class="section-row"><div><h3>회의 원문</h3><p>녹취록, 회의 중 급하게 적은 메모, 클로바노트에서 복사한 글. 뭐든 그대로 붙여 넣으세요. 녹음을 올렸다면 받아쓴 글이 여기에 들어옵니다.</p></div><span class="text-counter" id="charCount">0자</span></div>
           <textarea id="transcript" rows="11" placeholder="예)&#10;패키지는 1안으로 확정. 2안은 선물세트용으로만&#10;소연 과장이 다음 주 수요일까지 인쇄 견적 두 곳 받아서 공유&#10;후기 10개는 한빛 쪽에서 10/29까지 전달"></textarea>
           <div class="field-foot"><span>"다음 주 수요일"이라고만 적어도 회의 날짜 기준으로 날짜를 계산합니다.</span><button id="generateBtn" class="primary-btn">AI로 회의록 · 할 일 정리 <span>↗</span></button></div>
         </div>
