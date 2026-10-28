@@ -78,9 +78,10 @@
       <section id="panel-tasks" class="view" aria-label="할 일 목록">
         <div class="section-heading"><div><span class="kicker">STEP 03 / ACTIONS</span><h2>해야 할 일</h2><p>누가, 무엇을, 언제까지 하는지 확인하고 캘린더에 올리세요.</p></div><button id="addTask" class="outline">＋ 할 일 추가</button></div>
         <div class="stats"><div><small>전체 할 일</small><strong id="allCount">0</strong></div><div><small>완료한 일</small><strong id="doneCount">0</strong></div><div><small>기한 미정</small><strong id="undatedCount">0</strong></div></div>
-        <div class="task-controls"><div class="task-note">제목, 담당자, 소속, 마감일, 세부 사항 모두 바로 고칠 수 있습니다.</div><select id="taskFilter" aria-label="할 일 필터"><option value="all">전체 보기</option><option value="open">진행 중</option><option value="done">완료</option></select></div>
+        <div class="task-controls"><div class="task-note">제목, 담당자, 소속, 마감일, 세부 사항 모두 바로 고칠 수 있고, 고치는 즉시 자동 저장됩니다.</div><select id="taskFilter" aria-label="할 일 필터"><option value="all">전체 보기</option><option value="open">진행 중</option><option value="done">완료</option></select></div>
         <div id="taskList" class="task-list"><div class="empty">아직 할 일이 없습니다.</div></div>
         <div class="export-bar"><div><strong>캘린더로 보내기</strong><p>할 일마다 [구글 캘린더에 등록]을 누르면 등록 화면이 열립니다. .ics 파일은 아웃룩이나 애플 캘린더에서 열립니다.</p></div><div class="export-actions"><button id="exportICS" class="outline">↓ 일정(.ics)</button><button id="exportTasks" class="dark-btn">↓ 할 일 목록</button></div></div>
+        <div class="bottom-action"><button id="backToMinutes" class="primary-btn"><span>←</span> 저장하고 회의록으로 돌아가기</button></div>
       </section>
       <footer class="footer"><span>MeetMate · 2026 · 대학원 과제 프로토타입</span><span>AI가 쓴 초안입니다. 원문과 맞춰 보세요.</span></footer>
     </div>

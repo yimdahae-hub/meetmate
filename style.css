@@ -60,3 +60,6 @@
 .source-switch button.on .src-check i{display:none}
 .source-switch .src-check i{font-style:normal}
 @media(max-width:720px){.source-switch small br{display:none}}
+
+/* 할 일 탭 하단 돌아가기 버튼: 휴대폰에서는 꽉 차게 */
+@media(max-width:720px){.bottom-action .primary-btn{width:100%}}

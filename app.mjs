@@ -331,6 +331,7 @@ $('applySpeakers').addEventListener('click',applySpeakerNames);
 $('generateBtn').addEventListener('click',generate);
 $('goTasksBtn').addEventListener('click',()=>activate('tasks'));
 $('goTasksBig').addEventListener('click',()=>activate('tasks'));
+$('backToMinutes').addEventListener('click',()=>{save();renderTaskPreview();activate('minutes');toast('할 일을 저장했어요.');});
 $('audioFile').addEventListener('change',e=>{const f=e.target.files?.[0];if(f)setAudioFile(f)});
 for(const evt of ['dragenter','dragover'])$('dropZone').addEventListener(evt,e=>{e.preventDefault();$('dropZone').classList.add('dragging')});
 for(const evt of ['dragleave','drop'])$('dropZone').addEventListener(evt,e=>{e.preventDefault();$('dropZone').classList.remove('dragging')});
