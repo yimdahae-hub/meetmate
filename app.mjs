@@ -6,12 +6,12 @@ const $=id=>document.getElementById(id);
 const DEFAULT = () => ({title:'', date:isoLocal(new Date()),participants:'',transcript:'',summary:'',issues:'',tasks:[],speakers:[],generated:false,engine:'',model:'',templateUsed:false,detail:'detailed',detailUsed:'',sourceMode:'audio'});
 const DETAIL_LABEL={brief:'간략',detailed:'상세'};
 let state=DEFAULT();
-try {const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');if(saved && typeof saved==='object'){state={...state,...saved,tasks:Array.isArray(saved.tasks)?saved.tasks:[]};if(!saved.sourceMode&&state.transcript.trim())state.sourceMode='text';}} catch(e){console.warn('복구 실패:',e);}
+try {const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');if(saved && typeof saved==='object'){state={...state,...saved,tasks:Array.isArray(saved.tasks)?saved.tasks:[]};}} catch(e){console.warn('복구 실패:',e);}
 let currentFile=null,audioURL=null,stream=null,recorder=null,recordParts=[],loading=false,toastTimer=null,recordTimer=null;
 // m4a·webm(바로 녹음 포함)은 브라우저가 WAV로 바꿔야 하는데, 긴 파일은 메모리를 너무 써서 40분까지만 바꾼다. mp3·wav는 바로 올라가 200MB까지.
 const MAX_CONVERT_MIN=40;
 const mmss=s=>`${String(Math.floor(s/60)).padStart(2,'0')}:${String(Math.floor(s%60)).padStart(2,'0')}`;
-const DEFAULT_STATUS='녹음은 Google Gemini로 보내 받아쓰고, 끝나면 바로 지웁니다.';
+const DEFAULT_STATUS='녹음은 Gemini로 보내 받아쓰고, 끝나면 바로 지웁니다.';
 const LABELS={source:'회의 원문',minutes:'회의록',tasks:'할 일 목록'};
 const SAMPLE=`10/24 한빛식품 브랜드 리뉴얼 2차 미팅 (우리: 민트스튜디오 / 클라이언트: 한빛식품)
 참석: 민트 - 임다해, 전소연, 이진선 / 한빛 - 박준호 팀장, 김세린 대리
@@ -186,7 +186,11 @@ async function generate(){
  finally{setBusy(false);}
 }
 function setStatus(message,type=''){const el=$('transcribeStatus');el.textContent=message;el.classList.remove('ok','error');if(type)el.classList.add(type);}
+const MAX_UPLOAD_MB=200; // 서버(api/upload.js)의 한도와 같다
+function notice(title,text){$('noticeTitle').textContent=title;$('noticeText').textContent=text;$('noticeDialog').showModal();}
 function setAudioFile(file){
+ const mb=file.size/1024/1024;
+ if(mb>MAX_UPLOAD_MB){notice('파일이 너무 큽니다',`${Math.round(mb)}MB 파일은 올릴 수 없어요 (${MAX_UPLOAD_MB}MB까지). 휴대폰이나 PC에서 mp3로 변환하면 보통 크기가 훨씬 줄어듭니다.`);return;}
  if(audioURL)URL.revokeObjectURL(audioURL);currentFile=file;audioURL=URL.createObjectURL(file);
  $('fileLabel').textContent=`선택됨 · ${file.name} (${(file.size/1024/1024).toFixed(1)}MB)`;
  $('audioPlayer').src=audioURL;$('audioPreview').hidden=false;$('transcribeBtn').disabled=false;
@@ -195,7 +199,10 @@ function setAudioFile(file){
  // 길이를 미리 재서, 변환이 필요한 형식이 40분을 넘으면 기다리게 하지 않고 바로 알린다.
  $('audioPlayer').onloadedmetadata=()=>{
    const min=$('audioPlayer').duration/60;if(!Number.isFinite(min))return;
-   if(!directMime(file)&&min>MAX_CONVERT_MIN){$('transcribeBtn').disabled=true;setStatus(`이 파일은 ${Math.round(min)}분이라 처리할 수 없어요. m4a·webm 형식은 ${MAX_CONVERT_MIN}분까지만 됩니다. mp3로 변환해서 올리거나 ${MAX_CONVERT_MIN}분 이하로 나눠 주세요.`,'error');}
+   if(!directMime(file)&&min>MAX_CONVERT_MIN){
+     $('transcribeBtn').disabled=true;setStatus(`이 파일은 ${Math.round(min)}분이라 처리할 수 없어요.`,'error');
+     notice('녹음이 너무 깁니다',`${Math.round(min)}분짜리 ${file.name.split('.').pop()} 파일은 처리할 수 없어요. m4a·webm 형식은 ${MAX_CONVERT_MIN}분까지만 됩니다. mp3로 변환해서 올리거나(mp3는 길이 제한 없이 ${MAX_UPLOAD_MB}MB까지) ${MAX_CONVERT_MIN}분 이하로 나눠 주세요.`);
+   }
    else setStatus(`파일 준비됐어요 (${mmss($('audioPlayer').duration)}). [AI로 회의록 만들기]를 누르세요.`);
  };
 }

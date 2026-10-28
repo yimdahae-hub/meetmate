@@ -41,3 +41,22 @@
 @media(max-width:720px){.audio-ways{grid-template-columns:1fr}.record-tile{padding:22px 16px}}
 .record-tile .sub b,.drop-zone>span:last-child b{color:#b64040;font-weight:700}
 .card-heading p b{color:#1b3545;font-weight:700}
+
+/* 입력 방법 카드: 두 카드는 같은 모양, 고른 쪽에만 테두리와 "✓ 선택" */
+.source-switch .src-icon{background:var(--navy);color:#fff}
+.source-switch button.on .src-icon{background:var(--navy);color:#fff}
+.source-switch button>span:nth-child(2){flex:1;min-width:0}
+.source-switch .src-check{flex:none;font-size:11px;font-weight:800;color:#16a98e;background:#e2f6ee;padding:4px 9px;border-radius:999px;visibility:hidden}
+.source-switch button.on .src-check{visibility:visible}
+.source-switch button.on{background:#fff}
+
+/* 마이크·글 아이콘(SVG), 두 카드 모두 표시 배지 */
+.src-icon svg{width:20px;height:20px}
+.card-symbol svg{width:22px;height:22px}
+.source-switch .src-check{visibility:visible;background:transparent;color:#a2aeba;border:1px solid #dfe7ec;font-weight:700}
+.source-switch .src-check b{display:none}
+.source-switch button.on .src-check{background:#e2f6ee;color:#16a98e;border-color:#bfe9dc}
+.source-switch button.on .src-check b{display:inline}
+.source-switch button.on .src-check i{display:none}
+.source-switch .src-check i{font-style:normal}
+@media(max-width:720px){.source-switch small br{display:none}}
